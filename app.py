@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 import fitz  # PyMuPDF
 
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = Flask(__name__)
 CORS(app)
@@ -36,24 +37,20 @@ def ask():
         user_question = data.get("question", "")
         context = read_all_pdfs()
 
-        from openai import OpenAI  # ở phần đầu file
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Bạn là trợ lý tuyển sinh của trường đại học. Trả lời rõ ràng, chính xác, ngắn gọn các câu hỏi về tuyển sinh đại học, sau đại học (thạc sĩ, tiến sĩ)... dựa trên tài liệu sau."},
+                {"role": "user", "content": f"Tài liệu:\n{context}\n\nCâu hỏi:\n{user_question}"}
+            ]
+        )
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-response = client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[
-        {"role": "system", "content": "Bạn là trợ lý tuyển sinh của trường đại học. Trả lời rõ ràng, chính xác, ngắn gọn các câu hỏi về tuyển sinh đại học, sau đại học (thạc sĩ, tiến sĩ)... dựa trên tài liệu sau."},
-        {"role": "user", "content": f"Tài liệu:\n{context}\n\nCâu hỏi:\n{user_question}"}
-    ]
-)
-
-answer = response.choices[0].message.content
+        answer = response.choices[0].message.content
         return jsonify({"response": answer})
 
     except Exception as e:
         print("LỖI GỌI GPT:", str(e))
         return jsonify({"response": f"Lỗi: {str(e)}"})
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))  # Dùng PORT từ môi trường nếu có
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
