@@ -1,34 +1,50 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-from openai import OpenAI
-import os
 from dotenv import load_dotenv
-import fitz  # PyMuPDF
+import os, openai, fitz
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 load_dotenv()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = Flask(__name__)
 CORS(app)
 
-def read_all_pdfs(folder_path="docs", max_chars=20000):
-    text = ""
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".pdf"):
+def split_text(text, max_chars=1000):
+    chunks, current = [], ""
+    for line in text.split('\n'):
+        if len(current) + len(line) < max_chars:
+            current += line + "\n"
+        else:
+            chunks.append(current.strip())
+            current = line + "\n"
+    if current:
+        chunks.append(current.strip())
+    return chunks
+
+def get_relevant_chunks(question, docs_path="docs"):
+    texts, filenames = [], []
+    for file in os.listdir(docs_path):
+        if file.endswith(".pdf"):
             try:
-                pdf_path = os.path.join(folder_path, filename)
-                doc = fitz.open(pdf_path)
-                for page in doc:
-                    text += page.get_text()
-                    if len(text) >= max_chars:
-                        break
+                path = os.path.join(docs_path, file)
+                doc = fitz.open(path)
+                raw = "\n".join(page.get_text() for page in doc)
                 doc.close()
-                if len(text) >= max_chars:
-                    break
+                chunks = split_text(raw)
+                texts.extend(chunks)
+                filenames.extend([file] * len(chunks))
             except Exception as e:
-                print(f"Lỗi đọc {filename}: {e}")
-    return text[:max_chars]
+                print(f"❌ Lỗi đọc {file}: {e}")
+
+    if not texts:
+        return ""
+
+    vectorizer = TfidfVectorizer().fit_transform(texts + [question])
+    cosine = cosine_similarity(vectorizer[-1], vectorizer[:-1]).flatten()
+    top_indices = cosine.argsort()[-3:][::-1]
+    return "\n\n".join([texts[i] for i in top_indices])
 
 @app.route("/")
 def index():
@@ -37,23 +53,23 @@ def index():
 @app.route("/ask", methods=["POST"])
 def ask():
     try:
-        data = request.get_json()
-        user_question = data.get("question", "")
-        context = read_all_pdfs()
+        user_question = request.json.get("question", "")
+        context = get_relevant_chunks(user_question)
 
-        response = client.chat.completions.create(
+        if not context.strip():
+            return jsonify({"response": "Không tìm thấy thông tin phù hợp trong tài liệu."})
+
+        completion = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Bạn là trợ lý tuyển sinh của trường đại học. Trả lời rõ ràng, chính xác, ngắn gọn các câu hỏi về tuyển sinh đại học, sau đại học (thạc sĩ, tiến sĩ)... dựa trên tài liệu sau."},
-                {"role": "user", "content": f"Tài liệu:\n{context}\n\nCâu hỏi:\n{user_question}"}
+                {"role": "system", "content": "Bạn là trợ lý tuyển sinh đại học và sau đại học."},
+                {"role": "user", "content": f"Ngữ cảnh:\n{context}\n\nCâu hỏi:\n{user_question}"}
             ]
         )
-
-        answer = response.choices[0].message.content
+        answer = completion["choices"][0]["message"]["content"]
         return jsonify({"response": answer})
 
     except Exception as e:
-        print("LỖI GỌI GPT:", str(e))
         return jsonify({"response": f"Lỗi: {str(e)}"})
 
 if __name__ == "__main__":
