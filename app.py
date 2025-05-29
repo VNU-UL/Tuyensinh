@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-import openai
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
 import fitz  # PyMuPDF
@@ -36,15 +36,19 @@ def ask():
         user_question = data.get("question", "")
         context = read_all_pdfs()
 
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Bạn là trợ lý tuyển sinh của trường đại học. Trả lời rõ ràng, chính xác, ngắn gọn các câu hỏi về tuyển sinh đại học, sau đại học (thạc sĩ, tiến sĩ)... dựa trên tài liệu sau."},
-                {"role": "user", "content": f"Tài liệu:\n{context}\n\nCâu hỏi:\n{user_question}"}
-            ]
-        )
+        from openai import OpenAI  # ở phần đầu file
 
-        answer = response["choices"][0]["message"]["content"]
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "Bạn là trợ lý tuyển sinh của trường đại học. Trả lời rõ ràng, chính xác, ngắn gọn các câu hỏi về tuyển sinh đại học, sau đại học (thạc sĩ, tiến sĩ)... dựa trên tài liệu sau."},
+        {"role": "user", "content": f"Tài liệu:\n{context}\n\nCâu hỏi:\n{user_question}"}
+    ]
+)
+
+answer = response.choices[0].message.content
         return jsonify({"response": answer})
 
     except Exception as e:
