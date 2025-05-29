@@ -12,7 +12,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = Flask(__name__)
 CORS(app)
 
-def read_all_pdfs(folder_path="docs"):
+def read_all_pdfs(folder_path="docs", max_chars=20000):
     text = ""
     for filename in os.listdir(folder_path):
         if filename.endswith(".pdf"):
@@ -21,10 +21,14 @@ def read_all_pdfs(folder_path="docs"):
                 doc = fitz.open(pdf_path)
                 for page in doc:
                     text += page.get_text()
+                    if len(text) >= max_chars:
+                        break
                 doc.close()
+                if len(text) >= max_chars:
+                    break
             except Exception as e:
                 print(f"Lỗi đọc {filename}: {e}")
-    return text
+    return text[:max_chars]
 
 @app.route("/")
 def index():
