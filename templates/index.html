@@ -2,37 +2,97 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>🎓 Chatbot Tuyển sinh</title>
+    <title>Trợ lý Tuyển sinh - Trường Đại học Luật, ĐHQGHN</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
-        body { font-family: Arial; padding: 20px; background: #f9f9f9; }
-        #chat { width: 100%; height: 400px; overflow-y: auto; border: 1px solid #ccc; background: #fff; padding: 10px; }
-        input, button { padding: 8px; font-size: 16px; }
+        body {
+            background-color: #f5f6f7;
+            font-family: Arial, sans-serif;
+        }
+        .chat-container {
+            max-width: 900px;
+            margin: 30px auto;
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+        .chat-header {
+            text-align: center;
+            color: #8B0000;
+        }
+        .chat-box {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #fafafa;
+        }
+        .user-message {
+            font-weight: bold;
+            color: #333;
+        }
+        .bot-message {
+            color: #555;
+            margin-bottom: 12px;
+        }
+        .btn-send {
+            background-color: #8B0000;
+            color: white;
+            border: none;
+        }
+        .btn-send:hover {
+            background-color: #a30000;
+        }
     </style>
 </head>
 <body>
-    <h2>🎓 Chatbot Tuyển sinh</h2>
-    <div id="chat"></div>
-    <input id="question" placeholder="Nhập câu hỏi..." />
-    <button onclick="send()">Gửi</button>
+    <div class="chat-container">
+        <div class="chat-header">
+            <img src="/static/logo.png" alt="Logo trường" height="50">
+            <h3>Trợ lý Tuyển sinh</h3>
+        </div>
+        <div class="chat-box" id="chat-box"></div>
+        <form id="chat-form">
+            <div class="input-group">
+                <input type="text" id="user-input" class="form-control" placeholder="Nhập câu hỏi..." autocomplete="off">
+                <button type="submit" class="btn btn-send">Gửi</button>
+            </div>
+        </form>
+    </div>
 
     <script>
-        function send() {
-            const q = document.getElementById("question").value;
-            if (!q) return;
-            const chat = document.getElementById("chat");
-            chat.innerHTML += `<p><b>Bạn:</b> ${q}</p>`;
-            fetch("/ask", {
+        const form = document.getElementById("chat-form");
+        const input = document.getElementById("user-input");
+        const chatBox = document.getElementById("chat-box");
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const question = input.value.trim();
+            if (!question) return;
+
+            chatBox.innerHTML += `<div class="user-message">Bạn: ${question}</div>`;
+            input.value = "";
+
+            const response = await fetch("/ask", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ question: q })
-            })
-            .then(res => res.json())
-            .then(data => {
-                chat.innerHTML += `<p><b>Chatbot:</b> ${data.response}</p>`;
-                chat.scrollTop = chat.scrollHeight;
+                body: JSON.stringify({ question }),
             });
-            document.getElementById("question").value = "";
-        }
+
+            const data = await response.json();
+            chatBox.innerHTML += `<div class="bot-message"><strong>Chatbot:</strong> ${data.response}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                form.dispatchEvent(new Event("submit"));
+            }
+        });
     </script>
 </body>
 </html>
